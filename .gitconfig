@@ -1,0 +1,18 @@
+[user]
+  name = Jeff Quaintance
+  email = jeffrey.quaintance@staples.com
+[color]
+#  ui = true
+
+# https://gist.github.com/trlinkin/7223692#file-gistfile1-ini
+[alias]
+  # See http://cat.pdx.edu/~hunner/git-lg.png for an example
+  lg = "log --pretty=format:'%C(yellow)%h%C(reset) %C(blue)%an%C(reset) %C(cyan)%cr%C(reset) %s %C(green)%d%C(reset)' --graph --date-order"
+  fa = "fetch --all"
+  bavv = "branch -a --verbose --verbose"
+[color]
+	ui = false
+	diff = auto
+[core]
+   #autocrlf = input
+	safecrlf = true
