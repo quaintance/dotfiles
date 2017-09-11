@@ -79,17 +79,7 @@ function bk { # timestamp back up files before editing them
 			echo "backing up file: $1"
 			cp $1{,.`date '+%Y%m%d-%H%M%S'`}
 		fi
-	else # i wish the world were made of bash shells.. i could have just made the function do it the most compatible way
-	     # but that isn't as cool... 
-                if [[ $1 = "-s" ]]; then
-                        echo "backing up file: $2"
-                        sudo cp $2 $2.`date '+%Y%m%d-%H%M%S'
-                else
-                        echo "backing up file: $1"
-                        cp $1 $1.`date '+%Y%m%d-%H%M%S'
-                fi
 	fi
-
 }
 
 function c { # commandline math using bashcalc
