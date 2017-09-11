@@ -63,17 +63,16 @@
   bclean = "!f() { git branch --merged ${1-master} | grep -v " ${1-master}$" | xargs -r git branch -d; }; f"
   bdone = "!f() { git checkout ${1-master} && git up && git bclean ${1-master}; }; f"
 [color]
-	ui = false
-	diff = auto
+  ui = false
+  diff = auto
 [core]
-   #autocrlf = input
-	safecrlf = true
-	editor = code --wait
+  safecrlf = true
+  editor = code --wait
 [http]
-   sslVerify = false
+  sslVerify = false
 [push]
-   default = tracking
+  default = tracking
 [diff]
-    tool = default-difftool
+  tool = default-difftool
 [difftool "default-difftool"]
-    cmd = code --wait --diff $LOCAL $REMOTE
+  cmd = code --wait --diff $LOCAL $REMOTE
