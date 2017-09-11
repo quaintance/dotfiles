@@ -1,18 +1,79 @@
 [user]
   name = Jeff Quaintance
   email = jeffrey.quaintance@staples.com
-[color]
-#  ui = true
-
-# https://gist.github.com/trlinkin/7223692#file-gistfile1-ini
 [alias]
-  # See http://cat.pdx.edu/~hunner/git-lg.png for an example
-  lg = "log --pretty=format:'%C(yellow)%h%C(reset) %C(blue)%an%C(reset) %C(cyan)%cr%C(reset) %s %C(green)%d%C(reset)' --graph --date-order"
-  fa = "fetch --all"
-  bavv = "branch -a --verbose --verbose"
+  # http://haacked.com/archive/2014/07/28/github-flow-aliases/
+  # https://dev.to/andrew565/my-favorite-git-helpers
+  # http://durdn.com/blog/2012/11/22/must-have-git-aliases-advanced-examples/
+  #
+  # lots of ways to look at git log
+  lg      = "log --pretty=format:'%C(yellow)%h%C(reset) %C(blue)%an%C(reset) %C(cyan)%cr%C(reset) %s %C(green)%d%C(reset)' --graph --date-order --date=local"
+  l20     = !git lg|head -20
+  l10     = !git lg|head -10
+  ls      = log --pretty=format:"%C(yellow)%h%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate
+  ll      = "log --pretty=format:'%C(yellow)%h%Cred%d\\ %Creset%s%Cblue\\ [%cn]' --decorate --numstat"
+  lds     = log --pretty=format:"%C(yellow)%h\\ %ad%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate --date=short
+  filelog = "log -u"
+  last    = cat-file commit HEAD
+
+  # pull and see whats new
+  new     = !sh -c 'git lg $1@{1}..$1@{0} "$@"'
+  pnew    = !git pull && git new
+
+  # diff local HEAD
+  dlc     = "diff --cached HEAD^"
+
+  # diff range of commits
+  diffr   = "!f() { git diff "$1"^.."$1"; }; f"
+
+  # self explanatory
+  fa      = "fetch --all"
+  bavv    = "branch -a -vv"
+  cam     = !git add -A && git commit -m
+  co      = "checkout"
+  grep    = "grep -Ii"
+
+  # create a savepoint if i need to temporarily save my work and then undo savepoint when ready to start again
+  save    = !git add -A && git commit -m 'SAVEPOINT'
+  undo    = reset HEAD~1 --mixed
+
+  # amend previous commit
+  amend   = commit -a --amend
+
+  # save failed idea into a savepoint, then reset and remove that savepoint commit
+  # use git reflog if you later want to go back and review that failed idea
+  wipe    = !git add -A && git commit -qm 'WIPE SAVEPOINT' && git reset HEAD~1 --hard
+
+  # bring up to date before working. pull remote, rebase any local commits to come after any i just pulled in
+  # and prune any remote tracking branches that have been deleted. finally update any submodules 
+  up      = "!git pull --rebase --prune $@ && git submodule update --init --recursive"
+
+  # search for files in code tree
+  f       = "!git ls-files | grep -i"
+
+  # list all the aliases
+  aliases = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/[ ]/ = /'
+
+  # use like `git edit-unmerged; ...edit..., ...test...
+  # git add-unmerged; get commit || rebase --continue
+  edit-unmerged = "!f() { git diff --name-status --diff-filter=U | cut -f2 ; }; code `f`"
+  add-unmerged = "!f() { git diff --name-status --diff-filter=U | cut -f2 ; }; git add `f`"
+  
+  # remove all the previously merged branches with bdone. 
+  bclean = "!f() { git branch --merged ${1-master} | grep -v " ${1-master}$" | xargs -r git branch -d; }; f"
+  bdone = "!f() { git checkout ${1-master} && git up && git bclean ${1-master}; }; f"
 [color]
 	ui = false
 	diff = auto
 [core]
    #autocrlf = input
 	safecrlf = true
+	editor = code --wait
+[http]
+   sslVerify = false
+[push]
+   default = tracking
+[diff]
+    tool = default-difftool
+[difftool "default-difftool"]
+    cmd = code --wait --diff $LOCAL $REMOTE

@@ -1,27 +1,31 @@
 #my junk drawer, years of weirdness all piled into one file.
 # jeffq
 
-#++++++++++++++++++++ do we have other custom stuff for this server?
-[ -f ~/.customrc ] && . ~/.customrc
-
 #++++++++++++++++++++ exports
 #export NMON=cnDkm
 export NMON=cmt
 #export NMON=ckmto^V
 export EDITOR=vi
 export FCEDIT=vi
-export PATH=$PATH:.:/sbin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/local/admin/sbin:\
-~jquainta/bin:/opt/freeware/bin:/opt/freeware/sbin:/opt/tivoli/8.2/tws8.2/bin:/usr/sa_share/bin:\
-/usr/openwin/bin:/opt/IBM/ldap/V6.1/bin:/opt/apps/openldap/current/bin:/opt/emc/SYMCLI/V6.3.0/bin:\
-/usr/openv/netbackup/bin:/usr/openv/netbackup/bin/admincmd:/usr/openv/volmgr/bin:\
-/usr/openv/netbackup/bin/goodies:/usr/openv/java/jre/bin:/usr/openv/local:/usr/openv/local/bin
-
-export MOZILLA_HOME=/usr/local/netscape
+export GOPATH=~/go
+export PATH=$PATH:.:/sbin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/local/admin/sbin:/opt/puppet/bin:~/google-cloud-sdk/bin:/usr/local/opt/go/libexec/bin:~/bin
 export host=`hostname|cut -d. -f1`
-export MAESTRO_OUTPUT_STYLE=LONG
-export MAESTROLINES=-1
-#export PS1='[\!][\033k${host}\033\\]:${PWD}> ' # shelltitle for screen
-export PS1='[\!][${host}]:${PWD}> '
+function _update_ps1() {
+    PS1="$(~/powerline-shell.py --mode=patched --cwd-mode=plain  2> /dev/null)"
+}
+
+if [ "$TERM" != "linux" ]; then
+    PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
+fi
+#export PS1='[\!][${host}]:${PWD}> '
+#if [[ -x $(which git 2>/dev/null) ]]; then
+#  export GIT_PROMPT_ONLY_IN_REPO=1
+#  #source ~/.bash-git-prompt/gitprompt.sh 
+#  source ~/.gitbashrc
+#else
+#  export PS1='[\!][${host}]:${PWD}> '
+#fi
+
 export PS2='=> '
 export PS3='-> '
 export PS4='#$LINENO++ '
@@ -46,64 +50,15 @@ fi
 [ ! -f $HISTFILE ] && touch $HISTFILE && chmod 600 $HISTFILE
 	export HISTSIZE=99000
 
-
-#++++++++++++++++++++ host specific crap
-case $host in
-	"uscobrmfa-ap-01" )
-		export NMON=CkmtV ;;
-	"uscobrmfa-lp-67" ) 
-		function lockchk {
-			sudo /opt/apps/openldap/current/sbin/slapcat|sed -n "/uid=$1/,/^$/p"
-		}
-
-		function userfind {
-			[ -f /opt/apps/openldap/current/etc/openldap/passwd_proxyagent ] && \
-				proxypass=`sudo cat /opt/apps/openldap/current/etc/openldap/passwd_proxyagent`
-			case $1 in
-				-uid ) ldapsearch -LLL -x -b ou=People,dc=cexp,dc=com \
-					-D cn=proxyagent,ou=profile,dc=cexp,dc=com -w $proxypass "(uid=*$2*)" ;;
-				-gecos ) ldapsearch -LLL -x -b ou=People,dc=cexp,dc=com \
-					-D cn=proxyagent,ou=profile,dc=cexp,dc=com -w $proxypass "(gecos=*$2*)" ;;
-				-group ) ldapsearch -LLL -x -b ou=People,dc=cexp,dc=com \
-					-D cn=proxyagent,ou=profile,dc=cexp,dc=com -w $proxypass "(group=*$2*)" ;;
-			esac
-		} ;;
-	lnxmgrd1as01|lnxmgrd1as21|AgentSmith )
-		function lsdsh { # show me my dsh groups because typing ls ~/.dsh/group/ is too hard.
-			echo "local dsh groups +-------------------------------------------------------------"
-			ls ~/.dsh/group/
-			echo "global dsh groups +------------------------------------------------------------"
-			ls /etc/dsh/group
-		} 
-
-		# ssh agent mgmt!
-		if [ -z $SSH_AGENT_PID ]; then
-			if [ ! -e $HOME/.ssh-agent-pid ]; then
-				touch $HOME/.ssh-agent-pid
-			fi
-			OLD_PID=`cat $HOME/.ssh-agent-pid`; 
-			
-			LOAD_AGENT="load"
-			if kill -0 $OLD_PID > /dev/null 2>&1; then
-				PROG_NAME=`ps -p $OLD_PID -o command | tail -n1 | awk '{print $1}'`; # portable?
-				if [ $PROG_NAME == "ssh-agent" ]; then
-					# seems to be still running.
-					. $HOME/.ssh-agent-info
-					LOAD_AGENT=""
-				fi
-			fi
-			
-			if [ -n "$LOAD_AGENT" ]; then
-				eval `ssh-agent` > /dev/null 2>&1
-				echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK;" >  $HOME/.ssh-agent-info
-				echo "SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;" >> $HOME/.ssh-agent-info
-				echo -n $SSH_AGENT_PID > ~/.ssh-agent-pid
-			fi
-		fi
-		;;
-esac
-
-#++++++++++++++++++++ generic functions
+# Get the latest changes on master pulled down locally
+# and then rebase them into/onto the current branch
+function grm {
+  CURRENT=`git rev-parse --abbrev-ref HEAD` # figures out the current branch
+  git checkout master
+  git pull
+  git checkout $CURRENT
+  git rebase master
+}
 
 function retry { # impatiently keep trying to ssh to a host until success.. when you're rebooting.
 	while :
@@ -153,12 +108,9 @@ function hexc { # convert hex yo
 	echo "base=16;$*" |bc
 }
 
-function tel { # lazy
-	case $1 in 
-		ne ) ssh usneomahz-$2 ;;
-		co ) ssh uscobrmfa-$2 ;;
-		* ) ssh uscobrmfa-$1 ;;
-	esac
+function tf-graph { # graph all the things (for tf)
+   terraform graph > $1.dot
+   dot $1.dot -Tsvg -o $1.svg
 }
 
 function fb { # print human readable format largest files in a filesystem, handy for finding fs full culprits
@@ -240,6 +192,7 @@ case $0 in
 	*bash)
 		export HISTTIMEFORMAT='[%j|%g %T] ' # julian day|year timestamp in shell history.
 		export HISTCONTROL=ignoreboth
+      set -o vi
 		set show-all-symlinked-directories
 		shopt -s extglob # turn on extended globbing commandline regex.. or something.
 		shopt -s histappend # append shell history sessions rather than overwrite.
@@ -353,7 +306,7 @@ case `uname -s` in
 		} ;;
 
 
-	Linux )
+	Darwin )
 		[ -f ~jquainta/.ls_colors ] && eval `dircolors ~jquainta/.ls_colors` 2>&1
 		alias df="df -Ph"
 		alias nmon="~jquainta/nmon/linux/nmon"
@@ -415,11 +368,12 @@ case `uname -s` in
 esac
 
 #++++++++++++++++++++ generics
+alias json="python -mjson.tool"                     # formatted puppet catalogs, anyone?
 alias unperl="perl -MO=Deparse,-p,-q,-x=9"          # handy
 alias cperl="perl -MO=Concise,-exec"                # even more handy
 #alias more=less                                    # the most handy
 alias sudoq="sudo /usr/local/admin/sbin/qs5.pl"     # why didnt i just call it qs5?
-alias fssh="sudo fssh"                              #
+alias fssh="sudo fssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"                              #
 alias fscp="sudo fscp"                              # 
 alias pshog="ps aux|awk 'NR>1'|sort -k 3nr|head"    # ...
 alias view='vim -v'                                 # pointless
@@ -434,14 +388,24 @@ alias l.='ls -d .* --color=tty'                     # show my dot files, please
 alias epochs="perl -le 'print time'"                # seconds since epoch
 alias epochd="perl -e 'printf qq{%d\n},time/86400'" # days since epoch
 alias diff="diff --side-by-side"	            # i generally prefer this mode.
+alias puppet-ls="sudo /opt/puppet/bin/puppet catalog --terminus json select `hostname -f` file" # pe managed files`
+alias pval="puppet parser validate --parser=future "
+alias webshare='python -c "import SimpleHTTPServer;SimpleHTTPServer.test()"' # lol
+alias kc=kubectl
+alias tf=terraform
+
 
 # ever wonder when?
 alias rpmbydate='rpm -qa --queryformat "%{NAME}-%{VERSION}.%{RELEASE} (%{ARCH}) INSTALLED: %{INSTALLTIME:date}\n"'
+alias mobile-np='ssh -i ~/.ssh/mobile-np-key.pem -o "ProxyCommand ssh -W %h:%p -i ~/.ssh/mobile-np-key.pem ec2-user@10.242.35.29"'
 
 [ `uname -n` = "AgentSmith" ] && alias sinfo="cat /usr/local/admin/etc/server.list|egrep -i"
 
 if [[ $TERM = "vt320" ]]; then
 	stty erase
 fi
+
+# save myself from the perils of ctrl-s in vim
+stty -ixon
 
 # fin!
