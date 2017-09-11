@@ -196,6 +196,8 @@ case $0 in
 		complete -cf which # which completion
 		complete -cf man # man page completion
 		complete -o default -W "$(sed -e 's/ .*//' ~/.ssh/known_hosts|tr ',' '\012'|sort -u)" ssh # ssh complete!
+      # https://github.com/git/git/blob/master/contrib/completion/git-completion.bash
+      [ -f ~/git-completion.bash ] && source ~/git-completion.bash
 
 		# shell history search with arrows on partial commandline
 		#bind '"\e[A"':history-search-backward
