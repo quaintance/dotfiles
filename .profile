@@ -8,15 +8,15 @@ export NMON=cmt
 export EDITOR=vi
 export FCEDIT=vi
 export GOPATH=~/go
-export PATH=$PATH:.:/sbin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/local/admin/sbin:/opt/puppet/bin:~/google-cloud-sdk/bin:/usr/local/opt/go/libexec/bin:~/bin
+export PATH=$PATH:.:/sbin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/local/admin/sbin:/opt/puppet/bin::~/bin:~/Library/Python/2.7/bin
 export host=`hostname|cut -d. -f1`
-function _update_ps1() {
-    PS1="$(~/powerline-shell.py --mode=patched --cwd-mode=plain  2> /dev/null)"
-}
+#function _update_ps1() {
+#    PS1="$(~/powerline-shell.py --mode=patched --cwd-mode=plain  2> /dev/null)"
+#}
 
-if [ "$TERM" != "linux" ]; then
-    PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
-fi
+#if [ "$TERM" != "linux" ]; then
+#    PROMPT_COMMAND="_update_ps1; $PROMPT_COMMAND"
+#fi
 #export PS1='[\!][${host}]:${PWD}> '
 #if [[ -x $(which git 2>/dev/null) ]]; then
 #  export GIT_PROMPT_ONLY_IN_REPO=1
@@ -31,6 +31,49 @@ export PS3='-> '
 export PS4='#$LINENO++ '
 
 [ -x /bin/less ] || [ -x /usr/bin/less ] && export PAGER=less || export PAGER=more
+
+## enable fzf keybindings
+[ -f /usr/local/Cellar/fzf/*/shell/key-bindings.bash ] && source /usr/local/Cellar/fzf/*/shell/key-bindings.bash
+
+
+# manage kube config
+[[ -f $HOME/.kube/config ]] && [[ $(grep minikube $HOME/.kube/config | wc -l ) != 0 ]] || echo "No errant kubeconfigs."
+[[ -d $HOME/.kube/config.d ]] || mkdir $HOME/.kube/config.d
+
+for config in $(ls ~/.kube/config.d/); do
+    export KUBECONFIG="$HOME/.kube/config.d/$config:$KUBECONFIG";
+done
+
+function kc-config () {
+    if [[ $(ls ~/.kube/config.d/ | wc -l) != 0 ]]; then
+       for config in $(ls ~/.kube/config.d/); do export KUBECONFIG="$HOME/.kube/config.d/$config:$KUBECONFIG"; done && export KUBECONFIG=$(echo $KUBECONFIG | sed 's/:$//')
+    fi
+
+    kubectl config get-contexts
+}
+
+function get-creds {
+   rg=$1
+   if [[ $rg == "" ]]; then
+      rg=$(terraform output|egrep resource_group_name|awk '{print $NF}')
+   fi
+
+   aks_name=$(az aks list -g ${rg} |jq -r '.[].name')
+
+   echo "adding cluster ${aks_name} from resource group ${rg}"
+
+   if [[ -f $HOME/.kube/config.d/$aks_name ]]; then
+      echo "confirm delete of old kubeconfig"
+      rm -i $HOME/.kube/config.d/$aks_name
+   fi
+
+   az aks get-credentials --resource-group $rg --name $aks_name -f $HOME/.kube/config.d/$aks_name
+
+   kc-config 
+
+   kubectl config use-context $aks_name
+}
+
 
 if [ $PAGER = "less" ]; then
 	export LESS='--quit-at-eof --squeeze-blank-lines --RAW-CONTROL-CHARS --ignore-case --hilite-unread' # nice stuff for less
@@ -50,10 +93,23 @@ fi
 [ ! -f $HISTFILE ] && touch $HISTFILE && chmod 600 $HISTFILE
 	export HISTSIZE=99000
 
+
+function ls-vmss {
+   ## provide a resource-group name and get back vmss IPs
+   rg=$1
+   echo "---------"
+   for vmss_name in $(az vmss list --resource-group $rg | jq -r '.[].name' | grep -v default); do
+      echo "${vmss_name}:"
+      az vmss nic list --vmss-name $vmss_name -g $rg | jq -r '.[] | select(.macAddress != null) | .ipConfigurations[].privateIpAddress' 
+      echo "---------"
+   done
+}
+
+
 # Get the latest changes on master pulled down locally
 # and then rebase them into/onto the current branch
 function grm {
-  CURRENT=`git rev-parse --abbrev-ref HEAD` # figures out the current branch
+  CURRENT=$(git rev-parse --abbrev-ref HEAD) # figures out the current branch
   git checkout master
   git pull
   git checkout $CURRENT
@@ -111,7 +167,7 @@ function fb { # print human readable format largest files in a filesystem, handy
 		echo "$1 is not a directory, using `pwd`"
 		directory=`pwd`
 	fi
-	sudo find $directory -xdev -ls|sort -rnk7|head -30|awk '
+	find $directory -xdev -ls|sort -rnk7|head -30|awk '
 	{printf("size: %5.2f MB -> %s\n",$7/1024/1024,$NF)}'
 }
 
@@ -144,6 +200,21 @@ if [ -f $1 ] ; then
 else
 	echo "'$1' is not a recognized extension"
 fi
+}
+
+# nets
+function headers {
+   server=$1; port=${2:-80}
+   exec 5<> /dev/tcp/$server/$port
+   echo -e "HEAD / HTTP/1.0\nHost: ${server}\n\n" >&5;
+   cat 0<&5;
+   exec 5>&-
+}
+
+function port {
+   server=$1; port=$2; proto=${3:-tcp}
+   exec 5<>/dev/$proto/$server/$port
+   (( $? == 0 )) && exec 5<&-
 }
 
 #++++++++++++++++++++ shell stuff
@@ -366,6 +437,7 @@ alias cperl="perl -MO=Concise,-exec"                # even more handy
 #alias more=less                                    # the most handy
 alias sudoq="sudo /usr/local/admin/sbin/qs5.pl"     # why didnt i just call it qs5?
 alias fssh="sudo fssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"                              #
+alias azssh="sudo fssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"                              #
 alias fscp="sudo fscp"                              # 
 alias pshog="ps aux|awk 'NR>1'|sort -k 3nr|head"    # ...
 alias view='vim -v'                                 # pointless
@@ -385,6 +457,8 @@ alias pval="puppet parser validate --parser=future "
 alias webshare='python -c "import SimpleHTTPServer;SimpleHTTPServer.test()"' # lol
 alias kc=kubectl
 alias tf=terraform
+alias tfp="terraform get -update && terraform plan"
+alias sub="source ~/tf_env.sh "
 
 
 # ever wonder when?
